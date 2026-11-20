@@ -138,7 +138,7 @@ const compressedBlob = await compressImage(canvasBlob, {
 
 | Option | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `maxSizeMB` | `number` | `Infinity` | Target maximum output file size in megabytes. If the image is already smaller than this limit and no resizing is requested, compression is safely bypassed. |
+| `maxSizeMB` | `number` | `undefined` | Target maximum output file size in megabytes (e.g. `1` for 1 MB). If omitted, compression is governed by `quality` and dimensions without forcing a hard size ceiling. |
 | `maxWidth` | `number` | `undefined` | Maximum width in pixels. Proportional scaling preserves aspect ratio. |
 | `maxHeight` | `number` | `undefined` | Maximum height in pixels. Proportional scaling preserves aspect ratio. |
 | `quality` | `number` | `0.85` | Compression quality between `0.0` (lowest, smallest) and `1.0` (highest, largest). |

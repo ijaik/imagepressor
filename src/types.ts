@@ -1,5 +1,5 @@
 export interface CompressOptions {
-  /** Target maximum output file size in megabytes (e.g. 1 for 1 MB). Default: Infinity */
+  /** Target maximum output file size in megabytes (e.g. 1 for 1 MB). If omitted, compression is governed by quality and dimensions without a hard megabyte ceiling. */
   maxSizeMB?: number;
   /** Maximum width in pixels. Proportional downscaling preserves aspect ratio. */
   maxWidth?: number;
