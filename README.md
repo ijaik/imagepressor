@@ -1,9 +1,9 @@
-# imgcompressor
+# imagepressor
 
 > High-performance, zero-dependency, client-side image compression library that runs off the main thread in a Web Worker, preserving camera EXIF metadata and Display P3 color profiles.
 
-[![npm version](https://img.shields.io/npm/v/imgcompressor.svg)](https://www.npmjs.com/package/imgcompressor)
-[![license](https://img.shields.io/npm/l/imgcompressor.svg)](https://github.com/ijaik/imgcompressor/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/imagepressor.svg)](https://www.npmjs.com/package/imagepressor)
+[![license](https://img.shields.io/npm/l/imagepressor.svg)](https://github.com/ijaik/imagepressor/blob/main/LICENSE)
 
 ---
 
@@ -22,13 +22,13 @@
 ## Installation
 
 ```bash
-bun add imgcompressor
+bun add imagepressor
 # or
-npm install imgcompressor
+npm install imagepressor
 # or
-pnpm add imgcompressor
+pnpm add imagepressor
 # or
-yarn add imgcompressor
+yarn add imagepressor
 ```
 
 ---
@@ -38,7 +38,7 @@ yarn add imgcompressor
 Compress an image file down to under 1 MB and max 1920px width:
 
 ```typescript
-import { compressImage } from "imgcompressor";
+import { compressImage } from "imagepressor";
 
 const fileInput = document.querySelector('input[type="file"]');
 

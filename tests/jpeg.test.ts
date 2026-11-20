@@ -4,7 +4,7 @@ import {
   normalizeExifOrientation,
   spliceMetadataIntoBlob,
 } from "../src/jpeg";
-describe("imgcompressor - JPEG metadata engine", () => {
+describe("imagepressor - JPEG metadata engine", () => {
   test("normalizeExifOrientation resets Orientation tag to 1 in Little-Endian (II) EXIF", () => {
     // Construct synthetic APP1 segment with Little-Endian EXIF header
     const buffer = new Uint8Array(40);

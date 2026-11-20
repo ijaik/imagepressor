@@ -1,5 +1,5 @@
 {
-  "name": "imgcompressor",
+  "name": "imagepressor",
   "version": "0.1.0",
   "description": "High-performance, zero-dependency, client-side image compression library that runs off the main thread in a Web Worker, preserving camera EXIF metadata and Display P3 color profiles.",
   "main": "./dist/index.cjs",
@@ -22,7 +22,7 @@
     "test": "bun test"
   },
   "keywords": [
-    "imgcompressor",
+    "imagepressor",
     "image-compressor",
     "image-compression",
     "browser-image-compression",
@@ -42,11 +42,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ijaik/imgcompressor.git"
+    "url": "git+https://github.com/ijaik/imagepressor.git"
   },
-  "homepage": "https://github.com/ijaik/imgcompressor#readme",
+  "homepage": "https://github.com/ijaik/imagepressor#readme",
   "bugs": {
-    "url": "https://github.com/ijaik/imgcompressor/issues"
+    "url": "https://github.com/ijaik/imagepressor/issues"
   },
   "devDependencies": {
     "@types/bun": "1.4.4",

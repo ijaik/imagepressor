@@ -1,6 +1,6 @@
 import { build } from "bun";
 
-console.log("Building imgcompressor with Bun...");
+console.log("Building imagepressor with Bun...");
 
 // 1. Build ESM bundle for browsers and modern bundlers
 const esmResult = await build({
@@ -46,4 +46,4 @@ if (code !== 0) {
   process.exit(code);
 }
 
-console.log("✓ Successfully built imgcompressor (ESM, CJS, d.ts)");
+console.log("✓ Successfully built imagepressor (ESM, CJS, d.ts)");
