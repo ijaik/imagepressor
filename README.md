@@ -2,9 +2,6 @@
 
 > High-performance, zero-dependency, client-side image compression library that runs off the main thread in a Web Worker, preserving camera EXIF metadata and Display P3 color profiles.
 
-[![npm version](https://img.shields.io/npm/v/imagepressor.svg)](https://www.npmjs.com/package/imagepressor)
-[![license](https://img.shields.io/npm/l/imagepressor.svg)](https://github.com/ijaik/imagepressor/blob/main/LICENSE)
-
 ---
 
 ## Highlights
