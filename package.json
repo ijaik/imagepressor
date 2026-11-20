@@ -1,7 +1,7 @@
 {
   "name": "imgcompressor",
   "version": "0.1.0",
-  "description": "Fast, lightweight client-side image compression library with EXIF and ICC color profile preservation.",
+  "description": "High-performance, zero-dependency, client-side image compression library that runs off the main thread in a Web Worker, preserving camera EXIF metadata and Display P3 color profiles.",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
