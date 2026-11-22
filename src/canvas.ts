@@ -10,7 +10,6 @@ export async function compressWithMainThread(
   maxHeight: number | undefined,
   quality: number,
   mimeType: string,
-  backgroundColor: string,
   signal?: AbortSignal,
 ): Promise<CompressionResult> {
   if (signal?.aborted) {
@@ -46,11 +45,6 @@ export async function compressWithMainThread(
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("OffscreenCanvas 2D context unavailable");
-
-    if (mimeType === "image/jpeg" && backgroundColor) {
-      ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, width, height);
-    }
 
     ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close();
@@ -100,11 +94,6 @@ export async function compressWithMainThread(
       if (!ctx) {
         reject(new Error("Canvas 2D context unavailable"));
         return;
-      }
-
-      if (mimeType === "image/jpeg" && backgroundColor) {
-        ctx.fillStyle = backgroundColor;
-        ctx.fillRect(0, 0, width, height);
       }
 
       ctx.drawImage(img, 0, 0, width, height);

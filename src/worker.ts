@@ -3,7 +3,7 @@ import type { CompressionResult } from "./types";
 
 const WORKER_SCRIPT = `
 self.onmessage = async (e) => {
-  const { id, blob, maxWidth, maxHeight, quality, mimeType, backgroundColor } = e.data;
+  const { id, blob, maxWidth, maxHeight, quality, mimeType } = e.data;
   try {
     let bitmap;
     try {
@@ -28,11 +28,6 @@ self.onmessage = async (e) => {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("OffscreenCanvas 2D context unavailable");
 
-    if (mimeType === "image/jpeg" && backgroundColor) {
-      ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, width, height);
-    }
-
     ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close();
 
@@ -54,7 +49,6 @@ export async function compressWithWorker(
   maxHeight: number | undefined,
   quality: number,
   mimeType: string,
-  backgroundColor: string,
   signal?: AbortSignal,
 ): Promise<CompressionResult> {
   // Graceful fallback if Web Worker or OffscreenCanvas is unavailable (e.g. older browser or strict environment)
@@ -65,7 +59,6 @@ export async function compressWithWorker(
       maxHeight,
       quality,
       mimeType,
-      backgroundColor,
       signal,
     );
   }
@@ -136,7 +129,6 @@ export async function compressWithWorker(
         maxHeight,
         quality,
         mimeType,
-        backgroundColor,
       });
     });
   } catch {
@@ -147,7 +139,6 @@ export async function compressWithWorker(
       maxHeight,
       quality,
       mimeType,
-      backgroundColor,
       signal,
     );
   }
