@@ -1,6 +1,6 @@
 {
   "name": "imagepressor",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "High-performance, zero-dependency, client-side image compression library that runs off the main thread in a Web Worker, preserving camera EXIF metadata and Display P3 color profiles.",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
