@@ -4,16 +4,20 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>imagepressor — High-Performance Client-Side Image Compression</title>
+    <meta name="theme-color" content="#0e0d0b" />
+    <title>imagepressor — client-side image compression studio</title>
     <meta
       name="description"
-      content="Test imagepressor live in your browser: zero-dependency, off-main-thread Web Worker image compression with EXIF and Display P3 ICC color profile preservation."
+      content="Compress JPEG, PNG and WebP in your browser. imagepressor runs off the main thread, keeps EXIF and embedded ICC profiles, and never uploads a byte."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap"
     />
   </head>
-
-  <body
-    class="bg-[#0b0d13] text-slate-100 antialiased min-h-screen selection:bg-sky-500/30 selection:text-sky-200"
-  >
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

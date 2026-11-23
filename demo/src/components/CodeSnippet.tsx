@@ -1,11 +1,33 @@
-import React, { useState } from "react";
-import { Check, Copy, Code2, Terminal } from "lucide-react";
+import { useState } from "react";
+import { Check, Code2, Copy, Terminal } from "lucide-react";
 import type { CompressOptions } from "../types";
-export const CodeSnippet: React.FC<{ options: CompressOptions }> = ({
-  options,
-}) => {
+import { copyText, useCopiedFlag } from "../lib/clipboard";
+import { Label, Panel, Segmented } from "./Primitives";
+const TABS = [
+  {
+    value: "ts" as const,
+    label: (
+      <>
+        <Code2 className="size-3" aria-hidden="true" />
+        usage
+      </>
+    ),
+    title: "TypeScript usage",
+  },
+  {
+    value: "install" as const,
+    label: (
+      <>
+        <Terminal className="size-3" aria-hidden="true" />
+        install
+      </>
+    ),
+    title: "Install command",
+  },
+];
+export default function CodeSnippet({ options }: { options: CompressOptions }) {
   const [activeTab, setActiveTab] = useState<"ts" | "install">("ts");
-  const [copied, setCopied] = useState(false);
+  const [copied, flashCopied] = useCopiedFlag();
   const cleanOpts: Record<string, unknown> = {};
   if (options.quality !== undefined && options.quality !== 0.85)
     cleanOpts.quality = options.quality;
@@ -17,6 +39,7 @@ export const CodeSnippet: React.FC<{ options: CompressOptions }> = ({
     cleanOpts.mimeType = options.mimeType;
   if (options.preserveMetadata === false) cleanOpts.preserveMetadata = false;
   if (options.useWebWorker === false) cleanOpts.useWebWorker = false;
+  if (options.strict !== undefined) cleanOpts.strict = options.strict;
   const formattedOpts =
     Object.keys(cleanOpts).length > 0
       ? JSON.stringify(cleanOpts, null, 2)
@@ -24,12 +47,11 @@ export const CodeSnippet: React.FC<{ options: CompressOptions }> = ({
           .split("\n")
           .map((line, idx) => (idx === 0 ? line : `  ${line}`))
           .join("\n")
-      : "{ quality: 0.85, maxSizeMB: 1 }";
+      : "{ quality: 0.85 }";
   const tsCode = `import { compressImage } from "imagepressor";
 
-// Compress file or blob client-side
-const compressedFile = await compressImage(file, ${formattedOpts});`;
-
+// Runs in a worker; returns the compressed File/Blob
+const out = await compressImage(file, ${formattedOpts});`;
   const installCode = `# Install with your preferred package manager
 bun add imagepressor
 # or
@@ -38,65 +60,39 @@ npm install imagepressor
 pnpm add imagepressor`;
   const activeContent = activeTab === "ts" ? tsCode : installCode;
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(activeContent);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    if (await copyText(activeContent)) flashCopied();
   };
   return (
-    <div className="rounded-3xl bg-zinc-900/80 border border-zinc-800/90 overflow-hidden shadow-2xl backdrop-blur-xl">
-      {/* Drawer Header & Tabs */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800 bg-zinc-950/70 text-xs">
+    <Panel className="overflow-hidden">
+      <div className="flex min-h-11 items-center justify-between gap-2 border-b border-line px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab("ts")}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-mono text-xs transition-all cursor-pointer ${
-              activeTab === "ts"
-                ? "bg-sky-500/15 text-sky-300 font-semibold border border-sky-500/30"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            <Code2 className="h-3.5 w-3.5 text-sky-400" />
-            <span>Usage Snippet</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("install")}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-mono text-xs transition-all cursor-pointer ${
-              activeTab === "install"
-                ? "bg-sky-500/15 text-sky-300 font-semibold border border-sky-500/30"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            <Terminal className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Install</span>
-          </button>
+          <Label className="hidden sm:inline">snippet</Label>
+          <Segmented
+            label="Snippet view"
+            value={activeTab}
+            options={TABS}
+            onChange={setActiveTab}
+          />
         </div>
         <button
           type="button"
           onClick={handleCopy}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700/60 text-[11px] font-mono text-zinc-300 hover:text-white transition-all cursor-pointer"
-          title="Copy code to clipboard"
+          title="Copy to clipboard"
+          className={`
+            "inline-flex h-7 cursor-pointer items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors duration-150",
+            ${copied ? "text-good" : "text-dim hover:text-paper"}`}
         >
           {copied ? (
-            <>
-              <Check className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-emerald-400">Copied</span>
-            </>
+            <Check className="size-3" aria-hidden="true" />
           ) : (
-            <>
-              <Copy className="h-3.5 w-3.5 text-zinc-400" />
-              <span>Copy</span>
-            </>
+            <Copy className="size-3" aria-hidden="true" />
           )}
+          {copied ? "copied" : "copy"}
         </button>
       </div>
-      {/* Code Area */}
-      <pre className="p-4 text-xs font-mono text-zinc-300 overflow-x-auto leading-relaxed bg-zinc-950/60 select-all">
+      <pre className="overflow-x-auto bg-[#0a0908] px-4 py-3.5 font-mono text-[11.5px] leading-relaxed text-muted select-all">
         <code>{activeContent}</code>
       </pre>
-    </div>
+    </Panel>
   );
-};
+}

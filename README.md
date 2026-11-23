@@ -23,10 +23,10 @@
 - **Zero-Memory Chunk-Hopping Inspector:** `getImageMetadata()` reads RIFF headers and hops past multi-megabyte image pixel frames directly to the metadata chunks, keeping memory footprint minimal.
 - **Smart Anti-Expansion Guards & Strict Mode:**
   - Prevents generational file bloat when re-compressing already-optimized images.
-  - Automatically guards against WebP 100% lossless mode (`VP8L`) inflation.
+  - Automatically guards against browser WebP 100% lossless mode (`VP8L`) inflation.
   - Supports `strict: true` (following Compressor.js standards) to guarantee output is never larger than the input file.
 - **Native Transparency via WebP:** Recommends modern WebP for transparent assets (logos, UI graphics), eliminating black backgrounds without lossless PNG bloat.
-- **Zero Runtime Dependencies:** Pure TypeScript and native Web Platform APIs. Under 8 KB minified.
+- **Zero Runtime Dependencies:** Pure TypeScript and native Web Platform APIs. ~6 KB min+gzip.
 
 ---
 
@@ -51,7 +51,9 @@ Compress an image down to under 1 MB and max 1920px width:
 ```typescript
 import { compressImage } from "imagepressor";
 
-const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+const fileInput = document.querySelector(
+  'input[type="file"]',
+) as HTMLInputElement;
 
 fileInput.addEventListener("change", async (event) => {
   const target = event.target as HTMLInputElement;
@@ -60,9 +62,9 @@ fileInput.addEventListener("change", async (event) => {
 
   try {
     const compressed = await compressImage(file, {
-      maxSizeMB: 1,       // Target maximum size: 1 MB
-      maxWidth: 1920,     // Max width in pixels (aspect ratio maintained)
-      quality: 0.85,      // Visual quality (0.0 to 1.0)
+      maxSizeMB: 1, // Target maximum size: 1 MB
+      maxWidth: 1920, // Max width in pixels (aspect ratio maintained)
+      quality: 0.85, // Visual quality (0.0 to 1.0)
     });
 
     console.log("Original size:", file.size);
@@ -140,44 +142,44 @@ import { getImageMetadata } from "imagepressor";
 
 const metadata = await getImageMetadata(file);
 
-console.log(metadata.hasExif);       // true
-console.log(metadata.make);          // "Apple"
-console.log(metadata.model);         // "iPhone 15 Pro"
-console.log(metadata.dateTime);      // "2024:05:12 14:23:01"
-console.log(metadata.colorSpace);    // "Display P3 / Wide Gamut (ICCP Preserved)"
-console.log(metadata.orientation);   // 1
+console.log(metadata.hasExif); // true
+console.log(metadata.make); // "Apple"
+console.log(metadata.model); // "iPhone 15 Pro"
+console.log(metadata.dateTime); // "2024:05:12 14:23:01"
+console.log(metadata.colorSpace); // "ICC profile embedded" (or "sRGB (Standard)")
+console.log(metadata.orientation); // 1
 ```
 
 ---
 
 ## Options API Reference
 
-| Option | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `maxSizeMB` | `number` | `undefined` | Target maximum output file size in megabytes (e.g. `1` for 1 MB). If omitted, compression is governed by `quality` and dimensions without forcing a hard megabyte ceiling. |
-| `maxWidth` | `number` | `undefined` | Maximum width in pixels. Proportional scaling preserves aspect ratio. |
-| `maxHeight` | `number` | `undefined` | Maximum height in pixels. Proportional scaling preserves aspect ratio. |
-| `quality` | `number` | `0.85` | Compression quality between `0.0` (lowest, smallest) and `1.0` (highest, largest). |
-| `mimeType` | `"image/jpeg" \| "image/webp"` | input type | Target output format (`"image/jpeg"`, `"image/webp"`). Defaults to input MIME type (WebP/PNG $\rightarrow$ WebP, JPEG $\rightarrow$ JPEG). |
-| `preserveMetadata`| `boolean` | `true` | When `true`, extracts and re-injects camera EXIF and Display P3 ICC color profiles for both JPEG and WebP outputs. |
-| `strict` | `boolean` | `true` (same format) | When `true`, returns the original image if compression output turns out larger than the original image without dimension downscaling. |
-| `useWebWorker` | `boolean` | `true` | Runs off the main thread in an inline Web Worker. Automatically falls back to main-thread processing if workers or `OffscreenCanvas` are unavailable. |
-| `signal` | `AbortSignal` | `undefined` | An `AbortSignal` to cancel compression immediately and clean up worker memory. |
-| `onProgress` | `(progress: number, stage: string) => void` | `undefined` | Callback receiving `(percent: number, stage: string)`. |
+| Option             | Type                                        | Default              | Description                                                                                                                                                                                                                            |
+| :----------------- | :------------------------------------------ | :------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxSizeMB`        | `number`                                    | `undefined`          | Target maximum output file size in megabytes (e.g. `1` for 1 MB). If omitted, compression is governed by `quality` and dimensions without forcing a hard megabyte ceiling.                                                             |
+| `maxWidth`         | `number`                                    | `undefined`          | Maximum width in pixels. Proportional scaling preserves aspect ratio.                                                                                                                                                                  |
+| `maxHeight`        | `number`                                    | `undefined`          | Maximum height in pixels. Proportional scaling preserves aspect ratio.                                                                                                                                                                 |
+| `quality`          | `number`                                    | `0.85`               | Compression quality between `0.0` (lowest, smallest) and `1.0` (highest, largest).                                                                                                                                                     |
+| `mimeType`         | `"image/jpeg" \| "image/webp"`              | input type           | Target output format (`"image/jpeg"`, `"image/webp"`). Defaults to input MIME type (WebP/PNG $\rightarrow$ WebP, JPEG $\rightarrow$ JPEG).                                                                                             |
+| `preserveMetadata` | `boolean`                                   | `true`               | When `true`, extracts and re-injects camera EXIF and the embedded ICC color profile for both JPEG and WebP outputs. Best-effort: corrupt metadata never fails a compression.                                                           |
+| `strict`           | `boolean`                                   | `true` (same format) | When `true`, returns the original image if compression output turns out larger than the original image without dimension downscaling. Ignored when `maxSizeMB` is set: the smallest attempt is returned so the requested ceiling wins. |
+| `useWebWorker`     | `boolean`                                   | `true`               | Runs off the main thread in an inline Web Worker. Automatically falls back to main-thread processing if workers or `OffscreenCanvas` are unavailable.                                                                                  |
+| `signal`           | `AbortSignal`                               | `undefined`          | An `AbortSignal` to cancel compression immediately and clean up worker memory.                                                                                                                                                         |
+| `onProgress`       | `(progress: number, stage: string) => void` | `undefined`          | Callback receiving `(percent: number, stage: string)`.                                                                                                                                                                                 |
 
 ---
 
 ## Exported Utilities
 
-| Function | Description |
-| :--- | :--- |
-| `compressImage(fileOrBlob, options)` | Primary client-side compression function with worker offloading and metadata preservation. |
-| `getImageMetadata(blob)` | Fast zero-memory metadata scanner for JPEG APP1/APP2 markers and WebP RIFF chunks. |
-| `extractMetadataSegments(blob)` | Extracts raw binary metadata segments (EXIF APP1 and ICC APP2) from JPEG or WebP files. |
-| `spliceMetadataIntoBlob(blob, segments)` | Injects binary metadata segments into a JPEG blob. |
-| `spliceWebpMetadata(blob, segments, w, h)` | Muxes binary metadata segments into an extended WebP container. |
-| `insertWebPExif(webpBytes, rawExif, rawIcc, w, h)` | Low-level pure TypeScript WebP RIFF muxer that upgrades simple VP8 WebP to extended VP8X. |
-| `normalizeExifOrientation(segment)` | Normalizes EXIF orientation tag in-place to `1` (Standard). |
+| Function                                           | Description                                                                                |
+| :------------------------------------------------- | :----------------------------------------------------------------------------------------- |
+| `compressImage(fileOrBlob, options)`               | Primary client-side compression function with worker offloading and metadata preservation. |
+| `getImageMetadata(blob)`                           | Fast zero-memory metadata scanner for JPEG APP1/APP2 markers and WebP RIFF chunks.         |
+| `extractMetadataSegments(blob)`                    | Extracts raw binary metadata segments (EXIF APP1 and ICC APP2) from JPEG or WebP files.    |
+| `spliceMetadataIntoBlob(blob, segments)`           | Injects binary metadata segments into a JPEG blob.                                         |
+| `spliceWebpMetadata(blob, segments, w, h)`         | Muxes binary metadata segments into an extended WebP container.                            |
+| `insertWebPExif(webpBytes, rawExif, rawIcc, w, h)` | Low-level pure TypeScript WebP RIFF muxer that upgrades simple VP8 WebP to extended VP8X.  |
+| `normalizeExifOrientation(segment)`                | Normalizes EXIF orientation tag in-place to `1` (Standard).                                |
 
 ---
 

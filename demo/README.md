@@ -59,12 +59,12 @@ bun install
 
 ### Available Scripts
 
-| Command | Description |
-| :--- | :--- |
-| `bun run dev` | Starts Vite local development server with HMR. |
-| `bun run build` | Type-checks with `tsc -b` and builds production bundle to `dist/`. |
-| `bun run lint` | Runs `oxlint` on demo source files. |
-| `bun run preview` | Previews the production build locally. |
+| Command           | Description                                                        |
+| :---------------- | :----------------------------------------------------------------- |
+| `bun run dev`     | Starts Vite local development server with HMR.                     |
+| `bun run build`   | Type-checks with `tsc -b` and builds production bundle to `dist/`. |
+| `bun run lint`    | Runs `oxlint` on demo source files.                                |
+| `bun run preview` | Previews the production build locally.                             |
 
 ---
 

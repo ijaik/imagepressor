@@ -28,7 +28,7 @@ export interface DemoPreset {
   label: string;
   sublabel: string;
   url: string;
-  type: string;
+  mimeType: "image/jpeg" | "image/webp";
   badge: string;
 }
 export interface CompressionProgressState {

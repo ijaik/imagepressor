@@ -1,40 +1,41 @@
-import React from "react";
 import type { CompressionProgressState } from "../types";
-
-export const ProgressBar: React.FC<{ state: CompressionProgressState }> = ({
+export default function ProgressBar({
   state,
-}) => {
-  if (!state.isCompressing && state.progress === 0) {
-    return null;
-  }
-
+}: {
+  state: CompressionProgressState;
+}) {
+  // Hide only the explicit idle state, so cancelled/error terminal states stay visible.
+  if (!state.isCompressing && state.progress === 0 && !state.stage) return null;
   const isIndeterminate = state.isCompressing && state.progress <= 5;
-
   return (
-    <div className="w-full bg-zinc-900/90 border border-zinc-800/90 rounded-2xl p-3.5 shadow-xl backdrop-blur-md transition-all animate-in fade-in duration-200">
-      <div className="flex items-center justify-between text-xs mb-2">
+    <div className="rounded-panel border border-line bg-ink-2 px-4 py-3">
+      <div className="flex items-baseline justify-between gap-4">
         <span
           role="status"
           aria-live="polite"
-          className="font-medium text-zinc-200 flex items-center gap-2 font-mono text-[11px]"
+          className="flex min-w-0 items-center gap-2 truncate font-mono text-[10px] uppercase tracking-[0.16em] text-muted"
         >
-          {state.isCompressing && (
-            <span className="h-2 w-2 rounded-full bg-sky-400 animate-pulse inline-block" />
-          )}
-          {state.stage || (state.isCompressing ? "Compressing..." : "Ready")}
+          <span
+            aria-hidden="true"
+            className={
+              state.isCompressing
+                ? "size-1.5 shrink-0 bg-signal"
+                : "size-1.5 shrink-0 bg-line-2"
+            }
+          />
+          {state.stage || (state.isCompressing ? "Compressing…" : "Ready")}
         </span>
-        <span className="font-mono text-sky-400 font-bold text-xs">
-          {isIndeterminate ? "..." : `${Math.round(state.progress)}%`}
+        <span className="shrink-0 font-mono text-[11px] tabular-nums text-signal">
+          {isIndeterminate ? "——" : `${Math.round(state.progress)}%`}
         </span>
       </div>
-
       {/* Semantic native progress element per modern-web-guidance */}
       <progress
         aria-label="Image compression progress"
         max={100}
         value={isIndeterminate ? undefined : state.progress}
-        className="w-full"
+        className="mt-2.5"
       />
     </div>
   );
-};
+}

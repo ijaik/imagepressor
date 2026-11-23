@@ -1,41 +1,40 @@
-import React, { useRef, useState } from "react";
-import {
-  UploadCloud,
-  Image as ImageIcon,
-  Sparkles,
-  FileImage,
-  RefreshCw,
-  FolderOpen,
-} from "lucide-react";
+import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { FileImage, FolderOpen, UploadCloud, X } from "lucide-react";
 import type { DemoPreset, PresetKey, ImageFileDetails } from "../types";
-
+import { formatBytes } from "../lib/format";
+import { Button, Label, Segmented } from "./Primitives";
 const PRESETS: DemoPreset[] = [
   {
     key: "landscape",
     label: "4K Landscape",
-    sublabel: "3840×2160 • High Detail",
+    sublabel: "3840 × 2160 · high detail",
     url: `${import.meta.env.BASE_URL}samples/sample-landscape.webp`,
-    type: "image/jpeg",
-    badge: "JPEG 4K",
+    mimeType: "image/jpeg",
+    badge: "JPEG",
   },
   {
     key: "portrait",
     label: "Portrait",
-    sublabel: "Display P3 • EXIF Tags",
+    sublabel: "Display P3 · camera EXIF",
     url: `${import.meta.env.BASE_URL}samples/sample-portrait.webp`,
-    type: "image/jpeg",
-    badge: "P3 & EXIF",
+    mimeType: "image/jpeg",
+    badge: "P3",
   },
   {
     key: "logo",
     label: "Tech Logo",
-    sublabel: "Alpha Transparency → WebP",
+    sublabel: "Alpha channel · VP8L",
     url: `${import.meta.env.BASE_URL}samples/sample-logo.png`,
-    type: "image/webp",
-    badge: "WebP Alpha",
+    mimeType: "image/webp",
+    badge: "ALPHA",
   },
 ];
-
+const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/avif";
+const SPECS = [
+  { term: "Bundle", detail: "≈ 6 KB gzip" },
+  { term: "Runtime", detail: "Web Worker" },
+  { term: "Deps", detail: "none" },
+];
 interface DropzoneProps {
   currentFile: ImageFileDetails | null;
   activePreset: PresetKey | null;
@@ -43,240 +42,211 @@ interface DropzoneProps {
   onSelectPreset: (preset: DemoPreset) => void;
   onClear: () => void;
 }
-
-function formatBytes(bytes: number): string {
-  if (bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
-}
-
-export const Dropzone: React.FC<DropzoneProps> = ({
+export default function Dropzone({
   currentFile,
   activePreset,
   onSelectFile,
   onSelectPreset,
   onClear,
-}) => {
+}: DropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      if (
-        file.type.startsWith("image/") ||
-        /\.(jpe?g|png|webp|avif)$/i.test(file.name)
-      ) {
-        onSelectFile(file);
-      }
-    }
-  };
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
+  const openPicker = () => fileInputRef.current?.click();
+  const acceptFile = (file: File) => {
+    if (
+      file.type.startsWith("image/") ||
+      /\.(jpe?g|png|webp|avif)$/i.test(file.name)
+    )
       onSelectFile(file);
-      e.target.value = "";
-    }
   };
-
-  // State A: Active Asset Toolbar (compact, sleek bar when an image is already in studio)
-  if (currentFile) {
-    return (
-      <div className="bg-zinc-900/80 border border-zinc-800/90 rounded-2xl p-3 sm:p-4 backdrop-blur-md shadow-xl flex flex-wrap items-center justify-between gap-3 transition-all">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/avif"
-          onChange={handleFileInput}
-          className="hidden"
-        />
-
-        {/* Current Asset Info */}
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-xl bg-zinc-800 border border-zinc-700/80 overflow-hidden flex items-center justify-center shrink-0">
-            {currentFile.previewUrl ? (
-              <img
-                src={currentFile.previewUrl}
-                alt="Thumbnail"
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <FileImage className="h-5 w-5 text-sky-400" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-white truncate max-w-48 sm:max-w-72 font-mono">
-                {currentFile.name}
-              </span>
-              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-sky-400 border border-zinc-700/60 shrink-0">
-                {currentFile.mimeType.replace("image/", "")}
-              </span>
-            </div>
-            <div className="text-[11px] font-mono text-zinc-400 flex items-center gap-2 mt-0.5">
-              <span>{formatBytes(currentFile.size)}</span>
-              <span>•</span>
-              <span>
-                {currentFile.width} × {currentFile.height} px
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Instant Preset Switcher Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
-          <span className="text-[11px] text-zinc-500 font-medium shrink-0 mr-1 flex items-center gap-1">
-            <Sparkles className="h-3 w-3 text-amber-400" />
-            Samples:
-          </span>
-          {PRESETS.map((preset) => {
-            const isActive = activePreset === preset.key;
-            return (
-              <button
-                key={preset.key}
-                type="button"
-                onClick={() => onSelectPreset(preset)}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                  isActive
-                    ? "bg-sky-500/20 border-sky-500/60 text-sky-200 shadow-sm"
-                    : "bg-zinc-950/60 hover:bg-zinc-800 border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                }`}
-                title={`Switch to ${preset.label}`}
-              >
-                <span>{preset.label}</span>
-                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-zinc-800/80 text-zinc-400">
-                  {preset.badge}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700/90 border border-zinc-700 text-xs font-medium text-zinc-200 hover:text-white transition-all cursor-pointer shadow-sm"
-            title="Choose a different image file"
-          >
-            <FolderOpen className="h-3.5 w-3.5 text-sky-400" />
-            <span className="hidden sm:inline">Change File</span>
-          </button>
-          <button
-            type="button"
-            onClick={onClear}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-950/80 hover:bg-rose-950/30 hover:border-rose-800/60 border border-zinc-800 text-xs font-medium text-zinc-400 hover:text-rose-300 transition-all cursor-pointer"
-            title="Reset and clear active asset"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Clear</span>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // State B: Welcoming Hero Dropzone (when no asset is currently selected)
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) acceptFile(file);
+  };
+  const handleFileInput = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) onSelectFile(file);
+    e.target.value = "";
+  };
+  const choosePreset = (key: PresetKey | undefined) => {
+    const preset = PRESETS.find((p) => p.key === key);
+    if (preset) onSelectPreset(preset);
+  };
   return (
-    <div className="space-y-4">
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        className={`relative border-2 border-dashed rounded-3xl p-8 sm:p-12 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-4 ${
-          isDragging
-            ? "border-sky-400 bg-sky-500/10 scale-[0.99] shadow-2xl shadow-sky-500/10"
-            : "border-zinc-800 hover:border-sky-500/50 bg-zinc-900/40 hover:bg-zinc-900/70 shadow-xl"
-        }`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/avif"
-          onChange={handleFileInput}
-          className="hidden"
-        />
-
-        <div className="h-14 w-14 rounded-2xl bg-linear-to-b from-sky-500/20 to-sky-500/5 border border-sky-500/30 flex items-center justify-center text-sky-400 shadow-inner">
-          <UploadCloud className="h-7 w-7" />
-        </div>
-
-        <div className="max-w-md space-y-1.5">
-          <h2 className="text-base sm:text-lg font-semibold text-white tracking-tight">
-            Drag & drop an image here, or{" "}
-            <span className="text-sky-400 underline underline-offset-4 decoration-sky-400/50 hover:decoration-sky-400">
-              browse files
-            </span>
-          </h2>
-          <p className="text-xs text-zinc-400">
-            Lossy & lossless client-side compression for JPEG, WebP, and PNG.
-            Images never leave your browser.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-mono text-zinc-500 pt-1">
-          <span className="px-2 py-0.5 rounded-full bg-zinc-800/80 border border-zinc-700/60">
-            JPEG
-          </span>
-          <span className="px-2 py-0.5 rounded-full bg-zinc-800/80 border border-zinc-700/60">
-            WebP
-          </span>
-          <span className="px-2 py-0.5 rounded-full bg-zinc-800/80 border border-zinc-700/60">
-            PNG
-          </span>
-          <span>•</span>
-          <span>Up to 100 MB</span>
-        </div>
-      </div>
-
-      {/* Instant Sample Presets Grid */}
-      <div>
-        <div className="flex items-center gap-1.5 text-xs text-zinc-400 mb-2.5 font-medium px-1">
-          <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-          <span>
-            Or test immediately with built-in photographic test presets:
-          </span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {PRESETS.map((preset) => (
-            <button
-              key={preset.key}
-              type="button"
-              onClick={() => onSelectPreset(preset)}
-              className="p-3.5 rounded-2xl text-left border border-zinc-800/90 bg-zinc-900/60 hover:bg-zinc-850 hover:border-sky-500/40 text-zinc-300 transition-all flex items-center justify-between gap-3 cursor-pointer group shadow-sm hover:shadow-md"
-            >
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-white group-hover:text-sky-300 transition-colors flex items-center gap-1.5 truncate">
-                  <ImageIcon className="h-3.5 w-3.5 text-sky-400 shrink-0" />
-                  <span className="truncate">{preset.label}</span>
-                </div>
-                <div className="text-[11px] text-zinc-400 truncate mt-0.5 font-mono">
-                  {preset.sublabel}
-                </div>
+    <>
+      {/* One input shared by both states */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ACCEPTED_TYPES}
+        onChange={handleFileInput}
+        className="sr-only"
+        tabIndex={-1}
+      />
+      {currentFile ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-panel border border-line bg-ink-2 p-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="size-11 shrink-0 overflow-hidden rounded-control border border-line bg-ink-3">
+              {currentFile.previewUrl ? (
+                <img
+                  src={currentFile.previewUrl}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : (
+                <FileImage
+                  className="m-auto size-4 text-dim"
+                  aria-hidden="true"
+                />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-2">
+                <span className="truncate font-mono text-[12px] text-paper">
+                  {currentFile.name}
+                </span>
+                <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.16em] text-signal">
+                  {currentFile.mimeType.replace("image/", "")}
+                </span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg bg-zinc-800 text-zinc-400 border border-zinc-700/60 shrink-0 group-hover:border-sky-500/30">
-                {preset.badge}
-              </span>
-            </button>
-          ))}
+              <div className="mt-1 font-mono text-[10px] tabular-nums text-dim">
+                {formatBytes(currentFile.size)}
+                <span className="mx-1.5 text-line-2">/</span>
+                {currentFile.width} × {currentFile.height} px
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="hidden sm:inline">specimens</Label>
+            <Segmented
+              label="Load a sample image"
+              value={activePreset ?? undefined}
+              options={PRESETS.map((p) => ({
+                value: p.key,
+                label: p.label.split(" ")[0],
+                title: p.sublabel,
+              }))}
+              onChange={choosePreset}
+            />
+          </div>
+          <div className="ml-auto flex items-center gap-1.5">
+            <Button onClick={openPicker} title="Choose a different image">
+              <FolderOpen className="size-3" aria-hidden="true" />
+              Change
+            </Button>
+            <Button variant="quiet" onClick={onClear} title="Clear the studio">
+              <X className="size-3" aria-hidden="true" />
+              Clear
+            </Button>
+          </div>
         </div>
-      </div>
-    </div>
+      ) : (
+        <section className="border-b border-line pb-10">
+          <div className="grid items-stretch gap-8 lg:grid-cols-[1.08fr_0.92fr]">
+            <div className="flex flex-col justify-center">
+              <Label tone="signal">01 — ingest</Label>
+              <h1 className="mt-5 font-display text-[46px] leading-[0.92] tracking-[-0.015em] text-paper sm:text-[64px] lg:text-[68px]">
+                Shrink the file.
+                <br />
+                <em className="text-muted">Keep the picture.</em>
+              </h1>
+              <p className="mt-5 max-w-[46ch] text-[13px] leading-relaxed text-muted">
+                JPEG, PNG and WebP recompressed in the browser. The encoder runs
+                in a worker on your own machine — no upload, no round trip, no
+                server bill.
+              </p>
+              <dl className="mt-7 flex flex-wrap items-baseline gap-x-7 gap-y-2 font-mono text-[10px] uppercase tracking-[0.14em]">
+                {SPECS.map((spec) => (
+                  <div key={spec.term} className="flex items-baseline gap-2">
+                    <dt className="text-dim">{spec.term}</dt>
+                    <dd className="text-paper">{spec.detail}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+            {/* Drop plate */}
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Drop an image or browse files to compress"
+              onClick={openPicker}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openPicker();
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              className={`group flex min-h-58 cursor-pointer flex-col items-center justify-center gap-3 rounded-panel border border-dashed px-6 py-10 text-center transition-colors duration-150" ${
+                isDragging
+                  ? "border-signal bg-signal/[0.07]"
+                  : "border-line-2 hover:border-dim hover:bg-ink-2"
+              }`}
+            >
+              <UploadCloud
+                className={`size-5 transition-colors duration-150" ${
+                  isDragging ? "text-signal" : "text-dim group-hover:text-paper"
+                }`}
+                aria-hidden="true"
+              />
+              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-paper">
+                Drop an image
+              </p>
+              <p className="text-[12px] text-muted">
+                or{" "}
+                <span className="underline decoration-line-2 underline-offset-4 group-hover:decoration-signal">
+                  browse files
+                </span>
+              </p>
+              <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.16em] text-dim">
+                JPEG · PNG · WebP · AVIF
+              </p>
+            </div>
+          </div>
+          {/* Specimen strip */}
+          <div className="mt-10">
+            <div className="flex items-center gap-3">
+              <Label>specimens</Label>
+              <span className="h-px flex-1 bg-line" aria-hidden="true" />
+              <span className="font-mono text-[10px] text-dim">
+                load instantly
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {PRESETS.map((preset, index) => (
+                <button
+                  key={preset.key}
+                  type="button"
+                  onClick={() => onSelectPreset(preset)}
+                  className="group flex cursor-pointer items-start gap-3 rounded-panel border border-line bg-ink-2 p-3.5 text-left transition-colors duration-150 hover:border-line-2 hover:bg-ink-3"
+                >
+                  <span className="font-mono text-[10px] text-dim group-hover:text-signal">
+                    0{index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] text-paper">
+                      {preset.label}
+                    </span>
+                    <span className="mt-1 block truncate font-mono text-[10px] text-dim">
+                      {preset.sublabel}
+                    </span>
+                  </span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-dim">
+                    {preset.badge}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+    </>
   );
-};
+}

@@ -1,466 +1,412 @@
-import React, { useState, useRef, useCallback } from "react";
 import {
-  Download,
-  Columns,
-  SplitSquareVertical,
-  Layers,
-  Copy,
+  useState,
+  useRef,
+  useCallback,
+  type ReactNode,
+  type PointerEvent,
+  type KeyboardEvent,
+} from "react";
+import {
   Check,
+  Columns,
+  Copy,
+  Download,
   Grid,
+  Layers,
+  SplitSquareVertical,
 } from "lucide-react";
 import type { ImageFileDetails } from "../types";
+import { formatBytes } from "../lib/format";
+import { useCopiedFlag } from "../lib/clipboard";
+import { Button, Label, Segmented } from "./Primitives";
+type ViewMode = "split" | "side-by-side" | "flip";
+type ZoomLevel = "fit" | "100" | "200";
+const VIEW_MODES: ReadonlyArray<{
+  value: ViewMode;
+  label: ReactNode;
+  title: string;
+}> = [
+  {
+    value: "split",
+    label: (
+      <>
+        <SplitSquareVertical className="size-3" aria-hidden="true" />
+        Split
+      </>
+    ),
+    title: "Split comparison slider",
+  },
+  {
+    value: "side-by-side",
+    label: (
+      <>
+        <Columns className="size-3" aria-hidden="true" />
+        Side
+      </>
+    ),
+    title: "Side-by-side view",
+  },
+  {
+    value: "flip",
+    label: (
+      <>
+        <Layers className="size-3" aria-hidden="true" />
+        A/B
+      </>
+    ),
+    title: "Flip between original and compressed",
+  },
+];
+const ZOOM_LEVELS: ReadonlyArray<{
+  value: ZoomLevel;
+  label: string;
+  title: string;
+}> = [
+  { value: "fit", label: "Fit", title: "Fit to frame" },
+  { value: "100", label: "1:1", title: "Actual pixels" },
+  { value: "200", label: "2×", title: "Zoom to 200%" },
+];
+const ZOOM_CLASS: Record<ZoomLevel, string> = {
+  fit: "max-h-full max-w-full object-contain",
+  "100": "max-w-none max-h-none",
+  "200": "scale-200",
+};
 interface ComparisonViewerProps {
   original: ImageFileDetails | null;
   compressed: ImageFileDetails | null;
   isCompressing?: boolean;
   onDownload: () => void;
+  className?: string;
 }
-function formatBytes(bytes: number): string {
-  if (bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
-}
-export const ComparisonViewer: React.FC<ComparisonViewerProps> = ({
+export default function ComparisonViewer({
   original,
   compressed,
   isCompressing = false,
   onDownload,
-}) => {
-  const [sliderPos, setSliderPos] = useState<number>(50); // percentage 0 - 100
-  const [viewMode, setViewMode] = useState<"split" | "side-by-side" | "flip">(
-    "split",
-  );
-  const [zoomLevel, setZoomLevel] = useState<"fit" | "100" | "200">("fit");
+  className,
+}: ComparisonViewerProps) {
+  const [sliderPos, setSliderPos] = useState<number>(50);
+  const [viewMode, setViewMode] = useState<ViewMode>("split");
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("fit");
   const [showCheckered, setShowCheckered] = useState<boolean>(true);
   const [flipActive, setFlipActive] = useState<boolean>(false);
-  const [copied, setCopied] = useState<boolean>(false);
+  const [copied, flashCopied] = useCopiedFlag();
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const updatePosition = useCallback((clientX: number) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-    const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
-    setSliderPos(percent);
+    setSliderPos(Math.max(0, Math.min(100, (x / rect.width) * 100)));
   }, []);
-  const handlePointerDown = (e: React.PointerEvent) => {
+  const handlePointerDown = (e: PointerEvent) => {
     isDraggingRef.current = true;
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     updatePosition(e.clientX);
   };
-  const handlePointerMove = (e: React.PointerEvent) => {
+  const handlePointerMove = (e: PointerEvent) => {
     if (isDraggingRef.current) updatePosition(e.clientX);
   };
-  const handlePointerUp = (e: React.PointerEvent) => {
+  const handlePointerUp = (e: PointerEvent) => {
     isDraggingRef.current = false;
     try {
       (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
-    } catch {}
+    } catch {
+      /* pointer capture may already be gone */
+    }
   };
-  // Keyboard navigation for split slider accessibility
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  // Keyboard alternative for the drag interaction
+  const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "ArrowLeft") setSliderPos((prev) => Math.max(0, prev - 5));
     else if (e.key === "ArrowRight")
       setSliderPos((prev) => Math.min(100, prev + 5));
   };
-  // Copy compressed image to clipboard
-  const handleCopyImage = async () => {
-    if (!compressed) return;
-    try {
-      const res = await fetch(compressed.previewUrl);
-      const blob = await res.blob();
-      // PNG is universally supported for clipboard image write
-      if (blob.type === "image/png") {
-        await navigator.clipboard.write([
-          new ClipboardItem({ "image/png": blob }),
-        ]);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } else {
-        // For WebP/JPEG, convert via canvas to clipboard image/png
-        const img = new Image();
-        img.src = compressed.previewUrl;
-        await img.decode();
+  // Clipboard image writes only accept PNG, so other formats convert once.
+  const toPngBlob = (blob: Blob): Promise<Blob> =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
         const canvas = document.createElement("canvas");
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
         const ctx = canvas.getContext("2d");
-        ctx?.drawImage(img, 0, 0);
-        canvas.toBlob(async (pngBlob) => {
-          if (pngBlob) {
-            await navigator.clipboard.write([
-              new ClipboardItem({ "image/png": pngBlob }),
-            ]);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          reject(new Error("Canvas 2D context unavailable"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((pngBlob) => {
+          URL.revokeObjectURL(url);
+          if (pngBlob) resolve(pngBlob);
+          else reject(new Error("PNG conversion failed"));
         }, "image/png");
-      }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Failed to decode image"));
+      };
+      img.src = url;
+    });
+  const handleCopyImage = async () => {
+    if (!compressed) return;
+    try {
+      const pngBlob =
+        compressed.file.type === "image/png"
+          ? compressed.file
+          : await toPngBlob(compressed.file);
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": pngBlob }),
+      ]);
+      flashCopied();
     } catch (err) {
       console.debug("Clipboard copy note:", err);
     }
   };
-  if (!original)
+  if (!original) {
     return (
-      <div className="h-96 rounded-3xl bg-zinc-900/30 border border-zinc-800/80 flex flex-col items-center justify-center p-6 text-center text-zinc-500 space-y-2">
-        <Layers className="h-8 w-8 text-zinc-600" />
-        <p className="text-sm font-medium text-zinc-400">
-          Interactive Visual Studio
+      <div
+        className={`
+          "flex min-h-70 flex-1 flex-col items-center justify-center gap-2 rounded-panel border border-line bg-ink-2 px-6 py-10 text-center",
+          ${className}
+        `}
+      >
+        <Layers className="size-4 text-dim" aria-hidden="true" />
+        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+          plate empty
         </p>
-        <p className="text-xs text-zinc-600 max-w-xs">
-          Select or drop an image above to compare quality, compression
-          artifacts, and transparency side-by-side.
+        <p className="max-w-[34ch] text-[12px] leading-relaxed text-dim">
+          Load an image to inspect quality, compression artefacts and alpha
+          transparency side by side.
         </p>
       </div>
     );
-  const zoomClass =
-    zoomLevel === "200"
-      ? "scale-200"
-      : zoomLevel === "100"
-        ? "scale-100 max-w-none max-h-none"
-        : "max-h-full max-w-full object-contain";
-  const savedPercent =
-    compressed && original
-      ? ((original.size - compressed.size) / original.size) * 100
-      : null;
+  }
+  const savedPercent = compressed
+    ? ((original.size - compressed.size) / original.size) * 100
+    : null;
+  const badge =
+    "pointer-events-none absolute z-10 flex items-center gap-2 rounded-control border border-line bg-ink px-2.5 py-1.5 font-mono text-[10px] tabular-nums";
   return (
-    <div className="space-y-3">
-      {/* Studio Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-900/70 border border-zinc-800/80 rounded-2xl p-2 px-3 backdrop-blur-md shadow-sm">
-        {/* Left: View Mode Tabs */}
-        <div className="inline-flex rounded-xl bg-zinc-950/80 border border-zinc-800/80 p-0.5 text-xs">
-          <button
-            type="button"
-            onClick={() => setViewMode("split")}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              viewMode === "split"
-                ? "bg-zinc-800 text-white font-medium shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-            title="Split comparison slider"
-          >
-            <SplitSquareVertical className="h-3.5 w-3.5" />
-            <span>Split Slider</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("side-by-side")}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              viewMode === "side-by-side"
-                ? "bg-zinc-800 text-white font-medium shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-            title="Side-by-side dual view"
-          >
-            <Columns className="h-3.5 w-3.5" />
-            <span>Side-by-Side</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("flip")}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              viewMode === "flip"
-                ? "bg-zinc-800 text-white font-medium shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-            title="Toggle between original and compressed"
-          >
-            <Layers className="h-3.5 w-3.5" />
-            <span>A/B Flip</span>
-          </button>
-        </div>
-        {/* Center: Zoom & Transparency Options */}
-        <div className="flex items-center gap-1.5">
-          {/* Zoom controls */}
-          <div className="hidden sm:inline-flex rounded-xl bg-zinc-950/80 border border-zinc-800/80 p-0.5 text-xs">
-            <button
-              type="button"
-              onClick={() => setZoomLevel("fit")}
-              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                zoomLevel === "fit"
-                  ? "bg-zinc-800 text-white font-medium"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              Fit
-            </button>
-            <button
-              type="button"
-              onClick={() => setZoomLevel("100")}
-              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                zoomLevel === "100"
-                  ? "bg-zinc-800 text-white font-medium"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              1:1
-            </button>
-            <button
-              type="button"
-              onClick={() => setZoomLevel("200")}
-              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                zoomLevel === "200"
-                  ? "bg-zinc-800 text-white font-medium"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              2x
-            </button>
-          </div>
-          {/* Checkerboard toggle */}
-          <button
-            type="button"
-            onClick={() => setShowCheckered(!showCheckered)}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
-              showCheckered
-                ? "bg-sky-500/10 border-sky-500/30 text-sky-300"
-                : "bg-zinc-950/80 border-zinc-800 text-zinc-400 hover:text-zinc-200"
-            }`}
-            title="Toggle transparency checkerboard grid"
-          >
-            <Grid className="h-3.5 w-3.5" />
-            <span className="hidden md:inline">Grid</span>
-          </button>
-        </div>
-        {/* Right: Copy & Download Actions */}
-        <div className="flex items-center gap-2">
+    <div className={`flex min-h-0 flex-col gap-2 ${className}`}>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-line bg-ink-2 px-3 py-2">
+        <Segmented
+          label="Comparison mode"
+          value={viewMode}
+          options={VIEW_MODES}
+          onChange={setViewMode}
+        />
+        <span className="hidden h-5 w-px bg-line sm:block" aria-hidden="true" />
+        <Segmented
+          label="Zoom level"
+          value={zoomLevel}
+          options={ZOOM_LEVELS}
+          onChange={setZoomLevel}
+        />
+        <Button
+          variant="quiet"
+          onClick={() => setShowCheckered((v) => !v)}
+          aria-pressed={showCheckered}
+          title="Toggle the transparency checkerboard"
+          className={`h-8 px-2.5 ${showCheckered ? "text-paper" : ""}`}
+        >
+          <Grid className="size-3" aria-hidden="true" />
+          Grid
+        </Button>
+        <div className="ml-auto flex items-center gap-1.5">
           {compressed && (
             <>
-              <button
-                type="button"
+              <Button
+                variant="quiet"
                 onClick={handleCopyImage}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-xs font-medium text-zinc-300 hover:text-white transition-all cursor-pointer"
-                title="Copy compressed image to clipboard"
+                title="Copy the compressed image to the clipboard"
+                className={`h-8 border border-line px-2.5 ${copied ? "text-good" : "text-muted hover:text-paper"}`}
               >
                 {copied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">Copied</span>
-                  </>
+                  <Check className="size-3" aria-hidden="true" />
                 ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5 text-zinc-400" />
-                    <span>Copy</span>
-                  </>
+                  <Copy className="size-3" aria-hidden="true" />
                 )}
-              </button>
-              <button
-                type="button"
-                onClick={onDownload}
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-linear-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
-                title="Download compressed image"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Download ({formatBytes(compressed.size)})</span>
-              </button>
+                {copied ? "Copied" : "Copy"}
+              </Button>
+              <Button variant="primary" onClick={onDownload}>
+                <Download className="size-3" aria-hidden="true" />
+                {formatBytes(compressed.size)}
+              </Button>
             </>
           )}
         </div>
       </div>
-      {/* Mode 1: Split Slider Canvas */}
+      {/* Split slider */}
       {viewMode === "split" && (
         <div
           ref={containerRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          className={`relative w-full h-115 sm:h-140 rounded-3xl overflow-hidden border border-zinc-800/90 select-none cursor-ew-resize group shadow-2xl transition-all ${
-            showCheckered ? "bg-checkered" : "bg-zinc-950"
-          }`}
-          style={{ "--split-pos": `${sliderPos}%` } as React.CSSProperties}
+          onPointerCancel={handlePointerUp}
+          className={`relative min-h-100 w-full flex-1 touch-none select-none overflow-hidden rounded-panel border border-line sm:min-h-130 cursor-ew-resize ${showCheckered ? "bg-checker" : "bg-[#0a0908]"}`}
         >
-          {/* Compressed Image (Background Layer) */}
-          <div className="absolute inset-0 flex items-center justify-center p-4 overflow-hidden">
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden p-5">
             <img
               src={compressed ? compressed.previewUrl : original.previewUrl}
               alt="Compressed result"
-              className={`transition-transform duration-100 ${zoomClass}`}
+              className={`transition-transform duration-100 ${ZOOM_CLASS[zoomLevel]}`}
             />
-            {/* Compressed Floating Badge (Top Right) */}
-            <div className="absolute top-4 right-4 z-10 px-3 py-1.5 rounded-xl bg-zinc-950/85 backdrop-blur-md border border-zinc-800 text-xs font-mono text-white shadow-xl pointer-events-none flex items-center gap-2">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  isCompressing || !compressed
-                    ? "bg-sky-400 animate-pulse"
-                    : "bg-emerald-400"
-                }`}
-              ></span>
-              <span className="text-zinc-400 font-semibold">Compressed:</span>
-              <span className="text-white font-bold">
-                {compressed ? formatBytes(compressed.size) : "Processing..."}
-              </span>
-              {savedPercent !== null && compressed && (
-                <span
-                  className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
-                    savedPercent > 0
-                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                      : "bg-sky-500/20 text-sky-400 border border-sky-500/30"
-                  }`}
-                >
-                  {savedPercent > 0
-                    ? `-${savedPercent.toFixed(1)}%`
-                    : "Preserved"}
-                </span>
-              )}
-            </div>
           </div>
-          {/* Original Image (Clipped Foreground Layer) */}
+          <div className={`${badge} top-3 right-3`}>
+            <span
+              className={`size-1.5 rounded-full ${isCompressing || !compressed ? "bg-signal" : "bg-good"}`}
+            />
+            <span className="text-dim">out</span>
+            <span className="text-paper">
+              {compressed ? formatBytes(compressed.size) : "···"}
+            </span>
+            {savedPercent !== null && (
+              <span
+                className={
+                  savedPercent > 0.05
+                    ? "text-good"
+                    : savedPercent < -0.05
+                      ? "text-warn"
+                      : "text-dim"
+                }
+              >
+                {savedPercent > 0.05
+                  ? `−${savedPercent.toFixed(1)}%`
+                  : savedPercent < -0.05
+                    ? `+${Math.abs(savedPercent).toFixed(1)}%`
+                    : "same"}
+              </span>
+            )}
+          </div>
           <div
-            className="absolute inset-0 flex items-center justify-center p-4 overflow-hidden pointer-events-none"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden p-5"
             style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
           >
             <img
               src={original.previewUrl}
-              alt="Original uncompressed"
-              className={`transition-transform duration-100 ${zoomClass}`}
+              alt="Original"
+              className={`transition-transform duration-100 ${ZOOM_CLASS[zoomLevel]}`}
             />
-            {/* Original Floating Badge (Top Left) */}
-            <div className="absolute top-4 left-4 z-10 px-3 py-1.5 rounded-xl bg-zinc-950/85 backdrop-blur-md border border-zinc-800 text-xs font-mono text-white shadow-xl pointer-events-none flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-zinc-400"></span>
-              <span className="text-zinc-400 font-semibold">Original:</span>
-              <span className="text-white font-bold">
-                {formatBytes(original.size)}
-              </span>
-              <span className="text-zinc-500 text-[11px]">
-                {original.width}×{original.height}
-              </span>
-            </div>
           </div>
-
-          {/* Divider Handle with Tactile Icon */}
+          <div className={`${badge} top-3 left-3`}>
+            <span className="size-1.5 rounded-full bg-muted" />
+            <span className="text-dim">in</span>
+            <span className="text-paper">{formatBytes(original.size)}</span>
+            <span className="text-dim">
+              {original.width}×{original.height}
+            </span>
+          </div>
           <div
-            className="absolute top-0 bottom-0 w-0.5 bg-linear-to-b from-sky-400 via-white to-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.8)] z-20 pointer-events-auto"
+            className="absolute top-0 bottom-0 z-20 w-px bg-paper/80"
             style={{ left: `${sliderPos}%` }}
             tabIndex={0}
             role="slider"
-            aria-label="Before and after split comparison slider"
+            aria-label="Original and compressed split position"
             aria-valuenow={Math.round(sliderPos)}
             aria-valuemin={0}
             aria-valuemax={100}
             onKeyDown={handleKeyDown}
           >
-            <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-zinc-900 text-sky-400 flex items-center justify-center shadow-2xl cursor-ew-resize border border-sky-500/60 ring-2 ring-sky-400/20 hover:scale-110 transition-transform">
-              <SplitSquareVertical className="h-4 w-4" />
+            <div className="absolute top-1/2 left-1/2 flex size-6 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center gap-0.5 rounded-xs border border-ink bg-paper">
+              <span className="h-2.5 w-px bg-ink/60" aria-hidden="true" />
+              <span className="h-2.5 w-px bg-ink/60" aria-hidden="true" />
             </div>
           </div>
         </div>
       )}
-
-      {/* Mode 2: Side-by-Side Dual View */}
+      {/* Side by side */}
       {viewMode === "side-by-side" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {/* Original Card */}
-          <div className="rounded-3xl border border-zinc-800/90 bg-zinc-950 p-3.5 flex flex-col shadow-xl">
-            <div className="flex items-center justify-between text-xs pb-2.5 mb-2.5 border-b border-zinc-800/80">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-zinc-400"></span>
-                <span className="font-semibold text-zinc-200">
-                  Original Asset
-                </span>
-              </div>
-              <span className="font-mono text-zinc-400 text-[11px]">
-                {formatBytes(original.size)} • {original.width}×
-                {original.height}
-              </span>
-            </div>
+        <div className="grid auto-rows-fr grid-cols-1 gap-2 md:grid-cols-2 flex-1">
+          {[
+            {
+              key: "in",
+              title: "Original",
+              size: original.size,
+              width: original.width,
+              height: original.height,
+              url: original.previewUrl,
+            },
+            {
+              key: "out",
+              title: "Compressed",
+              size: compressed?.size ?? 0,
+              width: compressed?.width ?? 0,
+              height: compressed?.height ?? 0,
+              url: compressed?.previewUrl ?? null,
+            },
+          ].map((plate) => (
             <div
-              className={`flex-1 min-h-80 flex items-center justify-center p-3 rounded-2xl overflow-hidden ${
-                showCheckered ? "bg-checkered" : "bg-zinc-900/40"
-              }`}
+              key={plate.key}
+              className="flex flex-col rounded-panel border border-line bg-ink-2"
             >
-              <img
-                src={original.previewUrl}
-                alt="Original"
-                className={`rounded-lg ${zoomClass}`}
-              />
-            </div>
-          </div>
-
-          {/* Compressed Card */}
-          <div className="rounded-3xl border border-zinc-800/90 bg-zinc-950 p-3.5 flex flex-col shadow-xl">
-            <div className="flex items-center justify-between text-xs pb-2.5 mb-2.5 border-b border-zinc-800/80">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
-                <span className="font-semibold text-sky-400">
-                  Compressed Output
+              <div className="flex items-baseline justify-between gap-3 border-b border-line px-3 py-2">
+                <Label
+                  className={plate.key === "out" ? "text-paper" : undefined}
+                >
+                  {plate.title}
+                </Label>
+                <span className="font-mono text-[10px] tabular-nums text-dim">
+                  {plate.url
+                    ? `${formatBytes(plate.size)} · ${plate.width}×${plate.height}`
+                    : "working"}
                 </span>
               </div>
-              <span className="font-mono text-zinc-200 text-[11px]">
-                {compressed ? (
-                  <>
-                    <span className="font-bold text-white">
-                      {formatBytes(compressed.size)}
-                    </span>
-                    <span className="text-zinc-500"> • </span>
-                    <span className="text-zinc-400">
-                      {compressed.width}×{compressed.height}
-                    </span>
-                  </>
+              <div
+                className={`flex min-h-60 flex-1 items-center justify-center overflow-hidden p-4 sm:min-h-80 ${showCheckered ? "bg-checker" : "bg-[#0a0908]"}`}
+              >
+                {plate.url ? (
+                  <img
+                    src={plate.url}
+                    alt={plate.title}
+                    className={ZOOM_CLASS[zoomLevel]}
+                  />
                 ) : (
-                  "Compressing..."
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-signal">
+                    encoding…
+                  </span>
                 )}
-              </span>
+              </div>
             </div>
-            <div
-              className={`flex-1 min-h-80 flex items-center justify-center p-3 rounded-2xl overflow-hidden ${
-                showCheckered ? "bg-checkered" : "bg-zinc-900/40"
-              }`}
-            >
-              {compressed ? (
-                <img
-                  src={compressed.previewUrl}
-                  alt="Compressed"
-                  className={`rounded-lg ${zoomClass}`}
-                />
-              ) : (
-                <div className="text-xs text-zinc-500 flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-sky-400 animate-pulse"></span>
-                  Processing compression...
-                </div>
-              )}
-            </div>
-          </div>
+          ))}
         </div>
       )}
-
-      {/* Mode 3: A/B Flip Toggle */}
+      {/* A/B flip */}
       {viewMode === "flip" && (
-        <div className="space-y-2">
-          <div
-            onClick={() => setFlipActive(!flipActive)}
-            className={`relative w-full h-115 sm:h-140 rounded-3xl overflow-hidden border border-zinc-800/90 select-none cursor-pointer group shadow-2xl flex items-center justify-center p-4 transition-all ${
-              showCheckered ? "bg-checkered" : "bg-zinc-950"
-            }`}
-          >
-            <img
-              src={
-                flipActive
-                  ? original.previewUrl
-                  : compressed
-                    ? compressed.previewUrl
-                    : original.previewUrl
-              }
-              alt="Flip comparison"
-              className={`transition-transform duration-100 ${zoomClass}`}
-            />
-
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 rounded-full bg-zinc-950/90 backdrop-blur-md border border-zinc-800 text-xs font-mono shadow-xl flex items-center gap-2">
-              <span className="text-zinc-400">Showing:</span>
-              <span
-                className={`font-bold ${
-                  flipActive ? "text-amber-400" : "text-emerald-400"
-                }`}
-              >
-                {flipActive ? "ORIGINAL" : "COMPRESSED"}
-              </span>
-              <span className="text-zinc-500 text-[10px]">
-                (Click anywhere to flip)
-              </span>
-            </div>
+        <div
+          onClick={() => setFlipActive((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setFlipActive((v) => !v);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="Toggle between original and compressed"
+          className={`relative flex min-h-100 w-full flex-1 cursor-pointer select-none items-center justify-center overflow-hidden rounded-panel border border-line px-5 sm:min-h-130 ${showCheckered ? "bg-checker" : "bg-[#0a0908]"}`}
+        >
+          <img
+            src={
+              flipActive
+                ? original.previewUrl
+                : (compressed?.previewUrl ?? original.previewUrl)
+            }
+            alt="Comparison"
+            className={`transition-transform duration-100 ${ZOOM_CLASS[zoomLevel]}`}
+          />
+          <div className={`${badge} top-3 left-1/2 -translate-x-1/2`}>
+            <span className="text-dim">showing</span>
+            <span className={flipActive ? "text-muted" : "text-good"}>
+              {flipActive ? "original" : "compressed"}
+            </span>
+            <span className="hidden text-dim sm:inline">click to flip</span>
           </div>
         </div>
       )}
     </div>
   );
-};
+}

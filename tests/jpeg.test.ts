@@ -1,12 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import {
-  extractMetadataSegments,
-  getImageMetadata,
-  normalizeExifOrientation,
-  spliceMetadataIntoBlob,
-} from "../src/jpeg";
+import { getImageMetadata, normalizeExifOrientation } from "../src/jpeg";
 import { spliceWebpMetadata } from "../src/webp";
-
 describe("imagepressor - JPEG & WebP metadata engine", () => {
   test("normalizeExifOrientation resets Orientation tag to 1 in Little-Endian (II) EXIF", () => {
     // Construct synthetic APP1 segment with Little-Endian EXIF header
@@ -44,13 +38,11 @@ describe("imagepressor - JPEG & WebP metadata engine", () => {
     buffer[27] = 0x00;
     buffer[28] = 0x06;
     buffer[29] = 0x00;
-
     const modified = normalizeExifOrientation(buffer);
     expect(modified).toBe(true);
     expect(buffer[28]).toBe(0x01);
     expect(buffer[29]).toBe(0x00);
   });
-
   test("getImageMetadata detects EXIF and orientation from JPEG", async () => {
     const segment = new Uint8Array(42);
     segment[0] = 0xff;
@@ -85,13 +77,11 @@ describe("imagepressor - JPEG & WebP metadata engine", () => {
     segment[29] = 0x00;
     segment[30] = 0x03;
     segment[31] = 0x00;
-
     const blob = new Blob([segment], { type: "image/jpeg" });
     const meta = await getImageMetadata(blob);
     expect(meta.hasExif).toBe(true);
     expect(meta.orientation).toBe(3);
   });
-
   test("spliceWebpMetadata injects EXIF chunk into WebP and getImageMetadata reads it", async () => {
     // Synthetic simple WebP: RIFF (4) + size (4) + WEBP (4) + VP8  (4) + size (4) + payload (4) = 24 bytes
     const simpleWebpBytes = new Uint8Array(24);
@@ -101,9 +91,7 @@ describe("imagepressor - JPEG & WebP metadata engine", () => {
     simpleWebpBytes.set([0x56, 0x50, 0x38, 0x20], 12); // 'VP8 '
     new DataView(simpleWebpBytes.buffer).setUint32(16, 4, true); // chunk size = 4
     simpleWebpBytes.set([0x01, 0x02, 0x03, 0x04], 20); // payload
-
     const webpBlob = new Blob([simpleWebpBytes], { type: "image/webp" });
-
     // Synthetic APP1 segment
     const app1 = new Uint8Array(40);
     app1[0] = 0xff;
@@ -136,24 +124,19 @@ describe("imagepressor - JPEG & WebP metadata engine", () => {
     app1[27] = 0x00;
     app1[28] = 0x01; // Orientation = 1
     app1[29] = 0x00;
-
     const splicedWebp = await spliceWebpMetadata(webpBlob, [app1], 800, 600);
     expect(splicedWebp.type).toBe("image/webp");
-
     const meta = await getImageMetadata(splicedWebp);
     expect(meta.hasExif).toBe(true);
     expect(meta.orientation).toBe(1);
   });
-
   test("compressImage short-circuits on JPEG 100% quality without size ceiling to prevent re-compression", async () => {
     const { compressImage } = await import("../src/index");
     const dummyBlob = new Blob([new Uint8Array(1000)], { type: "image/jpeg" });
-
     const result = await compressImage(dummyBlob, {
       quality: 1,
       mimeType: "image/jpeg",
     });
-
     expect(result).toBe(dummyBlob);
   });
 });
